@@ -16,8 +16,7 @@
          terminate/2, code_change/3]).
 
 -ifdef(namespaced_types).
--record(state, {id :: binary(),
-                size :: non_neg_integer(),
+-record(state, {size :: non_neg_integer(),
                 connections :: [{Connection::term(), Time::non_neg_integer()}],
                 working :: dict:dict(),
                 waiting :: queue:queue(),
@@ -26,8 +25,7 @@
                 timeout :: non_neg_integer(),
                 timer :: timer:tref()}).
 -else.
--record(state, {id :: binary(),
-                size :: non_neg_integer(),
+-record(state, {size :: non_neg_integer(),
                 connections :: [{Connection::term(), Time::non_neg_integer()}],
                 working :: dict(),
                 waiting :: queue(),
@@ -71,9 +69,7 @@
                         {ok, pid()} | {error, term()}.
 start_link(Name, Size, Timeout, ConnectFun, CloseFun) ->
     gen_server:start_link({via, gproc, make_registered_name(Name)},
-                          ?MODULE, {Name, Size, Timeout, ConnectFun, CloseFun},
-                          
-                          []).
+                          ?MODULE, {Size, Timeout, ConnectFun, CloseFun}, []).
 -spec stop(episcina:name()) -> ok.
 stop(Name) ->
     gen_server:cast({via, gproc, make_registered_name(Name)}, stop).
@@ -111,17 +107,11 @@ return_connection(Name, C) ->
 %%%===================================================================
 
 %% @private
-init({Name, Size, Timeout, ConnectFun, CloseFun}) ->
+init({Size, Timeout, ConnectFun, CloseFun}) ->
     erlang:process_flag(trap_exit, true),
-    Id = case Name of
-             undefined ->
-                 erlang:self();
-             _Name -> Name
-         end,
     {ok, Connection} = connect(ConnectFun),
     {ok, TRef} = timer:send_interval(60000, close_unused),
-    State = #state{id = Id,
-                   size = Size,
+    State = #state{size = Size,
                    connections = [{Connection, now_secs()}],
                    working = dict:new(),
                    timeout = Timeout,

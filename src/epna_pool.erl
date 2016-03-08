@@ -70,12 +70,13 @@
                  episcina:close_fun()) ->
                         {ok, pid()} | {error, term()}.
 start_link(Name, Size, Timeout, ConnectFun, CloseFun) ->
-    gen_server:start_link(?MODULE, {Name, Size, Timeout, ConnectFun, CloseFun},
+    gen_server:start_link({via, gproc, make_registered_name(Name)},
+                          ?MODULE, {Name, Size, Timeout, ConnectFun, CloseFun},
+                          
                           []).
 -spec stop(episcina:name()) -> ok.
 stop(Name) ->
-    {Pid, _} = gproc:await(make_registered_name(Name)),
-    gen_server:cast(Pid, stop).
+    gen_server:cast({via, gproc, make_registered_name(Name)}, stop).
 
 -spec get_connection(episcina:name()) -> episcina:connection().
 get_connection(Name) ->
@@ -83,14 +84,13 @@ get_connection(Name) ->
 
 -spec get_connection(episcina:name(), non_neg_integer()) -> episcina:connection().
 get_connection(Name, Timeout) ->
-    {Time, {Pid, _}} = timer:tc(gproc, await, [make_registered_name(Name),
-                                               Timeout]),
-    Timeout1 = Timeout - trunc(Time/1000),
     try
-        gen_server:call(Pid, get_connection, Timeout1)
+        gen_server:call({via, gproc, make_registered_name(Name)},
+                        get_connection, Timeout)
     catch
         _:_ ->
-            gen_server:cast(Pid, {cancel_wait, erlang:self()}),
+            gen_server:cast({via, gproc, make_registered_name(Name)},
+                            {cancel_wait, erlang:self()}),
             {error, timeout}
     end.
 
@@ -121,7 +121,6 @@ init({Name, Size, Timeout, ConnectFun, CloseFun}) ->
                    close_fun = CloseFun,
                    waiting = queue:new(),
                    timer = TRef},
-    gproc:reg(make_registered_name(Name), erlang:self()),
     {ok, State}.
 
 %% @private

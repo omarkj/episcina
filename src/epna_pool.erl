@@ -82,12 +82,20 @@ stop(Name) ->
 get_connection(Name) ->
     get_connection(Name, 10000).
 
--spec get_connection(episcina:name(), non_neg_integer()) -> episcina:connection().
+-spec get_connection(Name, Timeout) -> Retval when
+      Name :: episcina:name(),
+      Timeout :: non_neg_integer(),
+      Retval :: Connection | Error,
+      Connection :: pid(),
+      Error :: {error, Reason},
+      Reason :: no_pool | timeout.
 get_connection(Name, Timeout) ->
     try
         gen_server:call({via, gproc, make_registered_name(Name)},
                         get_connection, Timeout)
     catch
+        exit:{noproc,_} ->
+            {error, no_pool};
         _:_ ->
             gen_server:cast({via, gproc, make_registered_name(Name)},
                             {cancel_wait, erlang:self()}),
